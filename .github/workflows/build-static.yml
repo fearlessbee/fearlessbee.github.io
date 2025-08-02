@@ -1,9 +1,9 @@
-name: Build Static Blog
+name: Build Static Blog with Marked.js
 
 on:
   push:
     branches:
-      - main
+      - main # Or 'master'
     paths:
       - 'blogs/**.md'
       - 'post.template.html'
@@ -19,9 +19,14 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # --- THIS IS THE NEW STEP TO FIX THE ERROR ---
-      - name: Set up Pandoc
-        uses: pandoc/actions/setup@v1
+      # --- NEW STEPS TO SET UP NODE.JS AND MARKED ---
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Use a recent LTS version
+
+      - name: Install Marked CLI
+        run: npm install -g marked
       # ---------------------------------------------
 
       - name: Build HTML files from Markdown
@@ -36,23 +41,29 @@ jobs:
           for post in $(ls -t blogs/*.md); do
             FILENAME=$(basename "$post" .md)
 
-            # --- 1. COMPILE THE INDIVIDUAL POST HTML ---
-            CONTENT=$(pandoc "$post" -f markdown -t html)
-            TITLE=$(grep -m 1 '^# ' "$post" | sed 's/# //')
+            # --- 1. COMPILE THE INDIVIDUAL POST HTML (NOW USING MARKED) ---
             
+            # Use 'marked' command to convert markdown to an HTML fragment
+            # The '-i' flag specifies the input file.
+            CONTENT=$(marked -i "$post")
+            
+            # Get the first H1 from the markdown for the title
+            TITLE=$(grep -m 1 '^# ' "$post" | sed 's/# //')
+
+            # Create the final HTML for the post
             echo "$CONTENT" > temp_content.html
             sed -e "s|<!-- TITLE_PLACEHOLDER -->|$TITLE|" \
                 -e "/<!-- POST_CONTENT_PLACEHOLDER -->/r temp_content.html" \
                 -e "s|<!-- POST_CONTENT_PLACEHOLDER -->||" \
                 -e "s|<!-- DATE_PLACEHOLDER -->|$(date -u +"%B %d, %Y")|" \
                 post.template.html > "posts/$FILENAME.html"
-            rm temp_content.html # Clean up temp file
+            rm temp_content.html # Clean up
 
             # --- 2. ADD AN ENTRY TO THE TOC ---
             TOC_TITLE=$(echo "$FILENAME" | sed 's/-/ /g')
             TOC_HTML+="<li><a href=\"posts/$FILENAME.html\">$TOC_TITLE</a></li>"
             
-            echo "✅ Processed $FILENAME.html"
+            echo "✅ Processed $FILENAME.html using Marked.js"
           done
 
           # Close the TOC list
@@ -69,7 +80,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add index.html posts/
           if ! git diff --staged --quiet; then
-            git commit -m "docs: build static site"
+            git commit -m "docs: build static site with marked.js"
             git push
           else
             echo "No changes to commit."

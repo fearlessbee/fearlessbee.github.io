@@ -1,0 +1,55 @@
+name: Generate Blog TOC
+
+# This action runs on every push to the main branch
+# but only if files in the 'blogs/' directory have changed.
+on:
+  push:
+    branches:
+      - main # Or 'master', depending on your branch name
+    paths:
+      - 'blogs/**.md'
+  workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out the repository code
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # 2. Generate the TOC
+      - name: Generate TOC
+        run: |
+          # Start with an empty list
+          TOC_HTML="<ul>"
+          # Loop through all markdown files in the blogs directory, newest first
+          for post in $(ls -t blogs/*.md); do
+            # Get the filename, e.g., "my-first-post.md"
+            FILENAME=$(basename "$post")
+            # Create a clean title, e.g., "my first post"
+            TITLE=$(echo "$FILENAME" | sed -e 's/\.md$//' -e 's/-/ /g')
+            
+            # Append the list item to our HTML string
+            TOC_HTML+="<li><a href=\"blog.html?post=$FILENAME\">$TITLE</a></li>"
+          done
+          # Close the list
+          TOC_HTML+="</ul>"
+
+          # Use sed to find our placeholder and replace it with the generated HTML
+          # Note the use of a different delimiter `|` for sed to handle the HTML slashes
+          sed -i "s|<!-- TOC_PLACEHOLDER -->|$TOC_HTML|" index.template.html
+          
+          # Rename the template to the final index.html
+          mv index.template.html index.html
+          echo "✅ TOC generated and index.html created."
+
+      # 3. Commit the newly generated index.html file
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          # Check if there are any changes to commit
+          git diff --staged --quiet || git commit -m "docs: auto-generate blog TOC"
+          git push

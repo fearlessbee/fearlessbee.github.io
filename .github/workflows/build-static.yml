@@ -3,23 +3,26 @@ name: Build Static Blog
 on:
   push:
     branches:
-      - main # Or 'master'
+      - main
     paths:
       - 'blogs/**.md'
-      - 'post.template.html' # Re-build if post template changes
+      - 'post.template.html'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # We need to give the bot permission to write
+      contents: write
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        
-      - uses: docker://pandoc/core:3.5
+
+      # --- THIS IS THE NEW STEP TO FIX THE ERROR ---
+      - name: Set up Pandoc
+        uses: pandoc/actions/setup@v1
+      # ---------------------------------------------
 
       - name: Build HTML files from Markdown
         run: |
@@ -31,31 +34,21 @@ jobs:
 
           # Loop through all markdown files in the blogs directory, newest first
           for post in $(ls -t blogs/*.md); do
-            # Get the base filename without the .md extension
             FILENAME=$(basename "$post" .md)
 
             # --- 1. COMPILE THE INDIVIDUAL POST HTML ---
-            
-            # Use Pandoc to convert markdown to an HTML fragment
-            # The fragment will be injected into our post template
             CONTENT=$(pandoc "$post" -f markdown -t html)
-            
-            # Get the first H1 from the markdown for the title
             TITLE=$(grep -m 1 '^# ' "$post" | sed 's/# //')
-
-            # Create the final HTML for the post
-            # Use sed to replace placeholders in the template
-            # Note the use of a temp file to handle multi-line content
+            
             echo "$CONTENT" > temp_content.html
             sed -e "s|<!-- TITLE_PLACEHOLDER -->|$TITLE|" \
                 -e "/<!-- POST_CONTENT_PLACEHOLDER -->/r temp_content.html" \
                 -e "s|<!-- POST_CONTENT_PLACEHOLDER -->||" \
-                -e "s|<!-- DATE_PLACEHOLDER -->|$(date)|" \
+                -e "s|<!-- DATE_PLACEHOLDER -->|$(date -u +"%B %d, %Y")|" \
                 post.template.html > "posts/$FILENAME.html"
-            
+            rm temp_content.html # Clean up temp file
+
             # --- 2. ADD AN ENTRY TO THE TOC ---
-            
-            # Create a clean title for the TOC
             TOC_TITLE=$(echo "$FILENAME" | sed 's/-/ /g')
             TOC_HTML+="<li><a href=\"posts/$FILENAME.html\">$TOC_TITLE</a></li>"
             
@@ -75,7 +68,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add index.html posts/
-          # Check if there are changes to commit and push
           if ! git diff --staged --quiet; then
             git commit -m "docs: build static site"
             git push

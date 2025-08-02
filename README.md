@@ -1,6 +1,3 @@
 # fearlessbee
 
 
-## list
-
-### Premature Convergence

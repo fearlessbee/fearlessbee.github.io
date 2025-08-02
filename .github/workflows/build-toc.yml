@@ -1,57 +1,82 @@
-name: Generate Blog TOC
+name: Build Static Blog
 
-# This action runs on every push to the main branch
-# but only if files in the 'blogs/' directory have changed.
 on:
   push:
     branches:
-      - main # Or 'master', depending on your branch name
+      - main # Or 'master'
     paths:
       - 'blogs/**.md'
-  workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
+      - 'post.template.html' # Re-build if post template changes
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # We need to give the bot permission to write
+
     steps:
-      # 1. Check out the repository code
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2. Generate the TOC
-      - name: Generate TOC
+      - name: Build HTML files from Markdown
         run: |
-          # Start with an empty list
+          # Create the output directory if it doesn't exist
+          mkdir -p posts
+
+          # Start the TOC list for the index page
           TOC_HTML="<ul>"
+
           # Loop through all markdown files in the blogs directory, newest first
           for post in $(ls -t blogs/*.md); do
-            # Get the filename, e.g., "my-first-post.md"
-            FILENAME=$(basename "$post")
-            # Create a clean title, e.g., "my first post"
-            TITLE=$(echo "$FILENAME" | sed -e 's/\.md$//' -e 's/-/ /g')
+            # Get the base filename without the .md extension
+            FILENAME=$(basename "$post" .md)
+
+            # --- 1. COMPILE THE INDIVIDUAL POST HTML ---
             
-            # Append the list item to our HTML string
-            TOC_HTML+="<li><a href=\"blog.html?post=$FILENAME\">$TITLE</a></li>"
+            # Use Pandoc to convert markdown to an HTML fragment
+            # The fragment will be injected into our post template
+            CONTENT=$(pandoc "$post" -f markdown -t html)
+            
+            # Get the first H1 from the markdown for the title
+            TITLE=$(grep -m 1 '^# ' "$post" | sed 's/# //')
+
+            # Create the final HTML for the post
+            # Use sed to replace placeholders in the template
+            # Note the use of a temp file to handle multi-line content
+            echo "$CONTENT" > temp_content.html
+            sed -e "s|<!-- TITLE_PLACEHOLDER -->|$TITLE|" \
+                -e "/<!-- POST_CONTENT_PLACEHOLDER -->/r temp_content.html" \
+                -e "s|<!-- POST_CONTENT_PLACEHOLDER -->||" \
+                -e "s|<!-- DATE_PLACEHOLDER -->|$(date)|" \
+                post.template.html > "posts/$FILENAME.html"
+            
+            # --- 2. ADD AN ENTRY TO THE TOC ---
+            
+            # Create a clean title for the TOC
+            TOC_TITLE=$(echo "$FILENAME" | sed 's/-/ /g')
+            TOC_HTML+="<li><a href=\"posts/$FILENAME.html\">$TOC_TITLE</a></li>"
+            
+            echo "✅ Processed $FILENAME.html"
           done
-          # Close the list
+
+          # Close the TOC list
           TOC_HTML+="</ul>"
 
-          # Use sed to find our placeholder and replace it with the generated HTML
-          # Note the use of a different delimiter `|` for sed to handle the HTML slashes
+          # --- 3. COMPILE THE INDEX.HTML PAGE ---
           sed -i "s|<!-- TOC_PLACEHOLDER -->|$TOC_HTML|" index.template.html
-          
-          # Rename the template to the final index.html
           mv index.template.html index.html
-          echo "✅ TOC generated and index.html created."
+          echo "✅ Generated index.html"
 
-      # 3. Commit the newly generated index.html file
-      - name: Commit and push if changed
+      - name: Commit and push changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          # Check if there are any changes to commit
-          git diff --staged --quiet || git commit -m "docs: auto-generate blog TOC"
-          git push
+          git add index.html posts/
+          # Check if there are changes to commit and push
+          if ! git diff --staged --quiet; then
+            git commit -m "docs: build static site"
+            git push
+          else
+            echo "No changes to commit."
+          fi

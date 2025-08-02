@@ -1,0 +1,88 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    background-color: #fdfdfd;
+}
+
+header, footer {
+    text-align: center;
+    color: #777;
+    padding: 1rem 0;
+}
+
+h1, h2, h3 {
+    color: #222;
+    line-height: 1.2;
+}
+
+a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+#toc ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+#toc li {
+    background-color: #f4f4f4;
+    margin: 0.5rem 0;
+    padding: 1rem;
+    border-radius: 5px;
+    transition: background-color 0.2s;
+}
+
+#toc li:hover {
+    background-color: #e9e9e9;
+}
+
+#toc a {
+    font-size: 1.1rem;
+    font-weight: bold;
+    display: block;
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 2rem;
+    font-weight: bold;
+}
+
+/* Styles for the blog content itself */
+#blog-content {
+    background-color: #fff;
+    padding: 2rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+#blog-content h1 {
+    margin-top: 0;
+}
+
+#blog-content pre {
+    background-color: #2d2d2d;
+    color: #f8f8f2;
+    padding: 1rem;
+    border-radius: 5px;
+    overflow-x: auto;
+}
+
+#blog-content code {
+    font-family: "Fira Code", "Courier New", monospace;
+}
+
+#blog-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 5px;
+}
